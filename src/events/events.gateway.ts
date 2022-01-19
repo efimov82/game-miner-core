@@ -9,8 +9,8 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Game } from 'src/common/Game';
-import { DifficultyLevel, GameSettings } from '../common/game.types';
-import { cellClickRes, ICell, newGameRes } from './events.types';
+import { GameSettings } from '../common/game.types';
+import { ICell, newGameRes } from './events.types';
 
 const port = process.env.PORT || 9090;
 @WebSocketGateway(Number(port), {
