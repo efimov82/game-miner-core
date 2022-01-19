@@ -1,42 +1,101 @@
 import {
+  ConnectedSocket,
   MessageBody,
-  OnGatewayConnection,
   OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
   WsResponse,
 } from '@nestjs/websockets';
-import { from, Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
+import { Game } from 'src/common/Game';
+import { DifficultyLevel, GameSettings } from '../common/game.types';
+import { cellClickRes, ICell, newGameRes } from './events.types';
 
-// 9090,
-@WebSocketGateway(9090, {
+const port = process.env.PORT || 9090;
+@WebSocketGateway(Number(port), {
+  transports: ['websocket'],
   cors: {
     origin: '*',
   },
 })
-export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  @WebSocketServer() vserver: Server;
+export class EventsGateway implements OnGatewayDisconnect {
+  @WebSocketServer() server: Server;
+  games: Map<string, Game> = new Map();
+  clients: Map<string, string> = new Map();
 
-  async handleConnection() {
-    // A client has connected
+  handleDisconnect(client: any) {
+    console.log('client disconnected', client.id);
+    const gameId = this.clients.get(client.id);
+    this.games.delete(gameId);
+    this.clients.delete(client.id);
+
+    console.log(this.games);
   }
 
-  async handleDisconnect() {
-    // A client has disconnected
+  @SubscribeMessage('newGame')
+  async newGame(
+    @MessageBody() settings: GameSettings,
+    @ConnectedSocket() client: any,
+  ) {
+    console.log('newGame:', settings);
+    console.log('client=', client.id);
+
+    const currentGameId = this.clients.get(client.id);
+    this.games.delete(currentGameId);
+
+    const game = new Game(settings);
+
+    this.games.set(game.getId(), game);
+    this.clients.set(client.id, game.getId());
+
+    // console.log(this.games);
+    // console.log(this.clients);
+
+    this.server.emit('newGameRes', {
+      id: game.getId(),
+      gameState: game.getState(),
+      countMines: game.getCountMines(),
+    } as newGameRes);
   }
 
-  // @SubscribeMessage('events')
-  // findAll(@MessageBody() data: any): Observable<WsResponse<number>> {
-  //   return from([1, 2, 3]).pipe(
-  //     map((item) => ({ event: 'events', data: item })),
-  //   );
+  @SubscribeMessage('cellClick')
+  async cellClick(
+    @MessageBody() body: { gameId: string; cell: ICell },
+    @ConnectedSocket() client: any,
+  ) {
+    console.log(body);
+
+    const game = this.games.get(body.gameId);
+    if (!game) {
+      return this.emitErrorGameNotFound(body.gameId);
+    }
+
+    const fieldUpdate = JSON.stringify(game.openCell(body.cell));
+
+    this.server.emit('cellClickRes', {
+      gameState: game.getState(),
+      fieldUpdate,
+    });
+  }
+
+  protected emitErrorGameNotFound(gameId: string): void {
+    this.server.emit('error', {
+      message: `GameId ${gameId} not found`,
+      code: 'invalid_game_id',
+    });
+  }
+
+  @SubscribeMessage('cellMark')
+  async cellMark(@MessageBody() data: { row: number; cell: number }) {
+    console.log(data);
+    this.server.emit('cellMarkRes', 1); // 0
+  }
+
+  // @SubscribeMessage('message')
+  // async identity(@MessageBody() data: any): Promise<any> {
+  //   console.log('message', data);
+  //   this.server.emit('message', data);
+  //   return 'resp:' + data;
   // }
-
-  @SubscribeMessage('events')
-  async identity(@MessageBody() data: any): Promise<any> {
-    return data;
-  }
 }
