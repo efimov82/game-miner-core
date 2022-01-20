@@ -49,9 +49,6 @@ export class EventsGateway implements OnGatewayDisconnect {
     this.games.set(game.getId(), game);
     this.clients.set(client.id, game.getId());
 
-    // console.log(this.games);
-    // console.log(this.clients);
-
     this.server.emit('newGameRes', {
       id: game.getId(),
       gameState: game.getState(),
@@ -64,8 +61,6 @@ export class EventsGateway implements OnGatewayDisconnect {
     @MessageBody() body: { gameId: string; cell: ICell },
     @ConnectedSocket() client: any,
   ) {
-    console.log(body);
-
     const game = this.games.get(body.gameId);
     if (!game) {
       return this.emitErrorGameNotFound(body.gameId);
@@ -87,9 +82,21 @@ export class EventsGateway implements OnGatewayDisconnect {
   }
 
   @SubscribeMessage('cellMark')
-  async cellMark(@MessageBody() data: { row: number; cell: number }) {
-    console.log(data);
-    this.server.emit('cellMarkRes', 1); // 0
+  async cellMark(
+    @MessageBody() body: { gameId: string; cell: ICell },
+    @ConnectedSocket() client: any,
+  ) {
+    const game = this.games.get(body.gameId);
+    if (!game) {
+      return this.emitErrorGameNotFound(body.gameId);
+    }
+
+    const fieldUpdate = JSON.stringify(game.markCell(body.cell));
+
+    this.server.emit('cellMarkRes', {
+      gameState: game.getState(),
+      fieldUpdate,
+    });
   }
 
   // @SubscribeMessage('message')
