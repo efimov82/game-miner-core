@@ -29,16 +29,34 @@ export class Game {
     return this.state;
   }
 
+  public setField(field: Field): void {
+    this.field = field;
+  }
+
   public openCell(cell: ICell): ICell[] {
     const [openedCell, fieldUpdate] = this.field.openCell(cell);
 
-    if (!openedCell.isEmpty()) {
+    if (openedCell.isMined()) {
       this.state = GameState.userLose;
+    } else if (this.field.isAllMinesDetected()) {
+      this.state = GameState.userWin;
     }
 
-    this.field.print();
-
     return [...fieldUpdate.values()];
+  }
+
+  print(): void {
+    this.field.print();
+  }
+
+  public markCell(cell: ICell): ICell {
+    const res = this.field.markCell(cell);
+
+    if (this.field.isAllMinesDetected()) {
+      this.state = GameState.userWin;
+    }
+
+    return res;
   }
 
   getCountMinesForLevel(settings: GameSettings): number {

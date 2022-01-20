@@ -10,6 +10,7 @@ export interface ICell {
   row: number;
   col: number;
   countMines?: number | string;
+  isMarked?: boolean;
 }
 
 export interface cellClickRes {

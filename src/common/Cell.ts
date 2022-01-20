@@ -12,14 +12,8 @@ export class Cell {
   constructor(
     private row: number,
     private col: number,
-    private type: CellTypeEnum = CellTypeEnum.empty, // isOpen = false,
-  ) {
-    //this.type = type;
-    // this.isOpen = isOpen;
-    this.minesAround = 0;
-    // this.row = row;
-    // this.col = cell;
-  }
+    private type: CellTypeEnum = CellTypeEnum.empty,
+  ) {}
 
   public getRow(): number {
     return this.row;
@@ -49,9 +43,9 @@ export class Cell {
     return this._isMarked;
   }
 
-  // public isMined(): boolean {
-
-  // }
+  public isMined(): boolean {
+    return this.type === CellTypeEnum.mine;
+  }
 
   public open(): boolean {
     if (this._isMarked) return false;
@@ -68,11 +62,15 @@ export class Cell {
     this.minesAround = value;
   }
 
+  public mark(): boolean {
+    return this.setMarked(!this._isMarked);
+  }
+
   public setMarked(value: boolean): boolean {
-    if (this.isOpen) return false;
+    if (this._isOpen) return false;
 
     this._isMarked = value;
-    return true;
+    return value;
   }
 
   public setType(type: CellTypeEnum) {

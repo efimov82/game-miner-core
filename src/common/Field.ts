@@ -3,7 +3,7 @@ import { Cell, CellTypeEnum } from './Cell';
 
 export class Field {
   private field: Cell[][] = [];
-  private mines: Set<string>;
+  private mines: Map<string, Cell>;
 
   constructor(
     private rows: number,
@@ -19,6 +19,7 @@ export class Field {
     this.field = field;
     this.rows = field.length;
     this.cols = field[0].length;
+    this.calculateMinesFromFieldData();
     this.calculateNumbers();
   }
 
@@ -30,7 +31,7 @@ export class Field {
     return this.cols;
   }
 
-  public getMines(): Set<string> {
+  public getMines(): Map<string, Cell> {
     return this.mines;
   }
 
@@ -38,19 +39,66 @@ export class Field {
     const targetCell = this.field[cell.row][cell.col];
     let fieldUpdate = new Map<string, ICell>();
 
-    if (!targetCell.isEmpty()) {
-      const cell = {
+    targetCell.open();
+    if (targetCell.isMined()) {
+      fieldUpdate.set(targetCell.getId(), {
         row: targetCell.getRow(),
         col: targetCell.getCol(),
         countMines: 'x',
-      };
-
-      fieldUpdate.set(targetCell.getId(), cell);
+      });
+    } else if (targetCell.getMinesAround() !== 0) {
+      fieldUpdate.set(targetCell.getId(), {
+        row: targetCell.getRow(),
+        col: targetCell.getCol(),
+        countMines: targetCell.getMinesAround(),
+      });
     } else {
       fieldUpdate = this.openEmptyCells(cell.row, cell.col);
     }
 
     return [targetCell, fieldUpdate];
+  }
+
+  public markCell(cell: ICell): ICell {
+    cell.isMarked = this.field[cell.row][cell.col].mark();
+
+    return cell;
+  }
+
+  /**
+   * Check all mines marked or all not mined cells opened
+   */
+  public isAllMinesDetected(): boolean {
+    let allMinesMarked = true;
+
+    this.mines.forEach((cell) => {
+      if (!cell.isMarked()) {
+        allMinesMarked = false;
+      }
+    });
+
+    if (allMinesMarked) return true;
+
+    // check closed cells
+    const closedCells = this.collectClosedCells();
+    if (closedCells.length === this.mines.size) return true;
+
+    return false;
+  }
+
+  protected collectClosedCells(): Cell[] {
+    const res: Cell[] = [];
+    for (let row = 0; row < this.rows; row++) {
+      for (let col = 0; col < this.cols; col++) {
+        const cell = this.field[row][col];
+
+        if (!cell.isOpen()) {
+          res.push(cell);
+        }
+      }
+    }
+
+    return res;
   }
 
   protected initField(): void {
@@ -66,7 +114,7 @@ export class Field {
   }
 
   protected generateMines(): void {
-    this.mines = new Set<string>();
+    this.mines = new Map<string, Cell>();
 
     let minesForSet = this.countMines;
     while (minesForSet > 0) {
@@ -75,8 +123,22 @@ export class Field {
 
       if (this.field[xPos][yPos].isEmpty()) {
         this.field[xPos][yPos].setType(CellTypeEnum.mine);
-        this.mines.add(this.field[xPos][yPos].getId());
+        const cell = this.field[xPos][yPos];
+        this.mines.set(cell.getId(), cell);
         minesForSet--;
+      }
+    }
+  }
+
+  protected calculateMinesFromFieldData(): void {
+    this.mines = new Map<string, Cell>();
+
+    for (let row = 0; row < this.rows; row++) {
+      for (let col = 0; col < this.cols; col++) {
+        const cell = this.field[row][col];
+        if (cell.isMined()) {
+          this.mines.set(cell.getId(), cell);
+        }
       }
     }
   }
@@ -87,10 +149,13 @@ export class Field {
       for (let j = 0; j < this.cols; j++) {
         const cell = this.field[i][j];
 
-        const val = cell.isEmpty() ? cell.getMinesAround() : 'M';
-
         if (cell.isOpen()) {
-          line += `-${val}`;
+          line += `-${cell.getMinesAround()}`;
+        } else if (cell.isMarked()) {
+          line += '-F';
+          line += cell.isMined() ? 'M' : '';
+        } else if (cell.isMined()) {
+          line += '-M';
         } else {
           line += '-x';
         }
@@ -174,7 +239,6 @@ export class Field {
 
     for (let rIndex = startRowIndex; rIndex <= endRowIndex; rIndex++) {
       for (let cIndex = startCellIndex; cIndex <= endCellIndex; cIndex++) {
-        //fields[rIndex][cIndex].debugInfo = 'checked';
         if (
           !this.field[rIndex][cIndex].isOpen() &&
           !this.field[rIndex][cIndex].isMarked()
